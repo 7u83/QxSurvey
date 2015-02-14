@@ -20,7 +20,7 @@ class QxImage extends Imagick
 			// Get RGB value of pixel
 			$r = $this->getImagePixelColor($x,$y)->getColor();
 			
-			// Convert it to grey
+			// Convert it to greyscale
 			$g =($r['r']+$r['g']+$r['b'])/3.0;
 		
 			$row[$x]=$g;
@@ -92,12 +92,104 @@ class QxImage extends Imagick
 		return $b;
 	}
 
+	var $ihash = array(
+		'nnWWn' => 0,
+		'WnnnW' => 1,
+		'nWnnW' => 2,
+		'WWnnn' => 3,
+		'nnWnW' => 4,
+		'WnWnn' => 5,
+		'nWWnn' => 6,
+		'nnnWW' => 7,
+		'WnnWn' => 8,
+		'nWnWn' => 9
+	);
+
+
+	function decode_digit( & $row,$start, $cmp)
+	{
+
+		$str = "";
+		for($x=$start; $x<$start+10; $x+=2){
+
+			$w=abs($row[$x]);
+			if ($w>$cmp)
+				$str.='W';
+			else
+				$str.='n';
+		}
+
+		echo "Decoded: ($cmp)$str\n";
+		
+		if (isset($this->ihash[$str]))
+			return $this->ihash[$str];
+
+		return false;
+	}
+
+
+
+
+
+
+
+function try_decode(& $row ,$start,$end)
+{
+
+	$ratio=1.45;
+
+	$len=$end-$start;
+
+	if($len<10)
+		return false;
+
+	// we always want to start with a black sequence	
+	if ($row[$start]>0)
+		return $this->try_decode($row,$start+1,$end);
+
+	// Take the black narrow witdh from first 2 black bars
+	// and the white narrow width from first 2 white bars
+	$bnw=($row[$start]+$row[$start+2])/-2;
+	$wnw=($row[$start+1]+$row[$start+3])/2;
+
+
+	$str = "";
+	for ($x=$start+4; $x<$len-10; $x+=10){
+		$c = $row[$x];
+		$w = abs($c);
+
+		if ($c<0) {	//black
+			$cmp=$bnw;
+		}
+		else{
+			$cmp=$wnw;
+		}
+
+		$black = $this->decode_digit($row,$x,$bnw*$ratio);
+
+		$white = $this->decode_digit($row,$x+1,$wnw*$ratio);
+
+		
+
+
+
+		$str.=$black.$white;
+
+	}
+echo "STR: $str\n";
+	return $str;
+}
+
+
+
 
 	function get_bc($y)
 	{
-		$r = $this->get_row(176);
+		$r = $this->get_row($y);
 
 		$r = $this->get_w($r['row'],$r['min'],$r['max']);
+
+		$this->try_decode($r,0,count($r));
 
 		for ( $i=0; $i<count($r); $i++){
 			printf("%0.2f|",$r[$i]);
@@ -126,7 +218,7 @@ class QxImage extends Imagick
 	{
 		$rc = $this->getImagePage();
 
-			$this->get_bc(141);
+		$this->get_bc(147);
 
 
 		var_dump($rc);
