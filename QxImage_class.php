@@ -50,6 +50,9 @@ class QxImage extends Imagick
 
 
 		$range = $max-$min;
+		if ($range==0)
+			return false;
+
 		$thr = $range/2.0+$min;
 
 
@@ -106,79 +109,95 @@ class QxImage extends Imagick
 	);
 
 
-	function decode_digit( & $row,$start, $cmp)
+	function decode_digit( $fhash,$s)
 	{
 
+		$h = $fhash[$s].$fhash[$s+2].$fhash[$s+4].$fhash[$s+6].$fhash[$s+8];
+
+
+		if (isset($this->ihash[$h]))
+			return $this->ihash[$h];
+
+		return false;
+	}
+
+
+
+
+
+
+
+	function try_decode(& $row ,$start,$end)
+	{
+
+	//	$ratio=1.45;
+		$ratio=1.4;
+
+		$len=$end-$start;
+
+		if($len<10)
+			return false;
+
+		// we always want to start with a black sequence	
+		if ($row[$start]>0)
+			return $this->try_decode($row,$start+1,$end);
+
+		// Take the black narrow witdh from first 2 black bars
+		// and the white narrow width from first 2 white bars
+		$bnw=($row[$start]+$row[$start+2])/-2;
+		$wnw=($row[$start+1]+$row[$start+3])/2;
+
+
 		$str = "";
-		for($x=$start; $x<$start+10; $x+=2){
+		for ($x=$start+4; $x<$len; $x+=10){
 
-			$w=abs($row[$x]);
-			if ($w>$cmp)
-				$str.='W';
-			else
-				$str.='n';
+			$fhash = "";
+
+			for ($x1=$x; $x1<$x+10 ; $x1+=2){
+				if (!isset($row[$x1]))
+					break;
+				
+				$w = abs($row[$x1]);
+				if ($w>$bnw*$ratio)
+					$fhash.='W';
+				else
+					$fhash.='n';
+
+
+				if (!isset($row[$x1+1]))
+					break;
+				$w = abs($row[$x1+1]);
+				if ($w>$wnw*$ratio)
+					$fhash.='W';
+				else
+					$fhash.='n';
+				
+			}
+			if (substr($fhash,0,3)=='Wnn'){
+				return $str;
+				
+			}
+
+			if (strlen($fhash)<10)
+				return $this->try_decode($row,$start+1,$end);
+	
+
+
+			$black = $this->decode_digit($fhash,0);
+			if ($black===false)
+				return $this->try_decode($row,$start+1,$end);
+
+			$white = $this->decode_digit($fhash,1);
+			if ($white===false )
+				return $this->try_decode($row,$start+1,$end);
+			
+
+			$str.=$black.$white;
+
 		}
 
-		echo "Decoded: ($cmp)$str\n";
-		
-		if (isset($this->ihash[$str]))
-			return $this->ihash[$str];
-
-		return false;
-	}
-
-
-
-
-
-
-
-function try_decode(& $row ,$start,$end)
-{
-
-	$ratio=1.45;
-
-	$len=$end-$start;
-
-	if($len<10)
-		return false;
-
-	// we always want to start with a black sequence	
-	if ($row[$start]>0)
 		return $this->try_decode($row,$start+1,$end);
-
-	// Take the black narrow witdh from first 2 black bars
-	// and the white narrow width from first 2 white bars
-	$bnw=($row[$start]+$row[$start+2])/-2;
-	$wnw=($row[$start+1]+$row[$start+3])/2;
-
-
-	$str = "";
-	for ($x=$start+4; $x<$len-10; $x+=10){
-		$c = $row[$x];
-		$w = abs($c);
-
-		if ($c<0) {	//black
-			$cmp=$bnw;
-		}
-		else{
-			$cmp=$wnw;
-		}
-
-		$black = $this->decode_digit($row,$x,$bnw*$ratio);
-
-		$white = $this->decode_digit($row,$x+1,$wnw*$ratio);
-
-		
-
-
-
-		$str.=$black.$white;
-
 	}
-echo "STR: $str\n";
-	return $str;
-}
 
 
 
@@ -188,12 +207,13 @@ echo "STR: $str\n";
 		$r = $this->get_row($y);
 
 		$r = $this->get_w($r['row'],$r['min'],$r['max']);
+		if ($r==false)
+			return false;
 
-		$this->try_decode($r,0,count($r));
+		return $this->try_decode($r,0,count($r));
 
-		for ( $i=0; $i<count($r); $i++){
-			printf("%0.2f|",$r[$i]);
-		}
+
+
 
 		// Based on min and max convert to BW	
 	
@@ -218,10 +238,19 @@ echo "STR: $str\n";
 	{
 		$rc = $this->getImagePage();
 
-		$this->get_bc(147);
+		for ($y=0; $y<$rc['height']; $y++){
+//			echo "Scan : $y\n";
 
+			$bc = $this->get_bc($y);
+			
+			if ($bc != false){
+				if (strlen($bc)<8)
+					continue;
+				return $bc;
 
-		var_dump($rc);
+			}
+		}
+		return false;
 			
 	}
 	
