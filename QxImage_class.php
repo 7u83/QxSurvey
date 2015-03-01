@@ -12,16 +12,21 @@ class QxImage extends Imagick
 		$row=array();
 		$min=255;
 		$max=0;
-		
+	
 		// Find min, max and convert to grey
 		for($x=0; $x<$width; $x++){
 	
-
+			$ylines = 1.0;
+			$g=0;
 			// Get RGB value of pixel
-			$r = $this->getImagePixelColor($x,$y)->getColor();
+			for ($yo=0; $yo<$ylines; $yo++) {
+				$r = $this->getImagePixelColor($x,$y+$yo)->getColor();
+				// Convert it to greyscale
+				$g+= ($r['r']+$r['g']+$r['b'])/3.0;
+			}
 			
-			// Convert it to greyscale
-			$g =($r['r']+$r['g']+$r['b'])/3.0;
+			$g = $g/$ylines;
+
 		
 			$row[$x]=$g;
 
@@ -111,8 +116,13 @@ class QxImage extends Imagick
 
 	function decode_digit( $fhash,$s)
 	{
-
-		$h = $fhash[$s].$fhash[$s+2].$fhash[$s+4].$fhash[$s+6].$fhash[$s+8];
+		$h="";
+		for ($i=0; $i<=8; $i+=2){
+			if (isset($fhash[$s+$i]))
+				$h.=$fhash[$s+$i];
+		}
+ 
+		//$h = $fhash[$s].$fhash[$s+2].$fhash[$s+4].$fhash[$s+6].$fhash[$s+8];
 
 
 		if (isset($this->ihash[$h]))
@@ -122,25 +132,23 @@ class QxImage extends Imagick
 	}
 
 
-
-
-
-
-
 	function try_decode(& $row ,$start,$end)
 	{
+
 
 	//	$ratio=1.45;
 		$ratio=1.4;
 
 		$len=$end-$start;
 
-		if($len<10)
+		if($len<10){
 			return false;
+		}
 
 		// we always want to start with a black sequence	
-		if ($row[$start]>0)
+		if ($row[$start]>0){
 			return $this->try_decode($row,$start+1,$end);
+		}
 
 		// Take the black narrow witdh from first 2 black bars
 		// and the white narrow width from first 2 white bars
@@ -173,25 +181,20 @@ class QxImage extends Imagick
 					$fhash.='n';
 				
 			}
-			if (substr($fhash,0,3)=='Wnn'){
-				return $str;
-				
-			}
-
-			if (strlen($fhash)<10)
-				return $this->try_decode($row,$start+1,$end);
-	
 
 
 			$black = $this->decode_digit($fhash,0);
-			if ($black===false)
-				return $this->try_decode($row,$start+1,$end);
 
 			$white = $this->decode_digit($fhash,1);
-			if ($white===false )
-				return $this->try_decode($row,$start+1,$end);
-			
 
+			if ($black === false || $white===false) {
+				if (substr($fhash,0,3)=='Wnn'){
+					return $str;
+				}
+				return $this->try_decode($row,$start+1,$end);
+			}
+
+			
 			$str.=$black.$white;
 
 		}
@@ -212,25 +215,7 @@ class QxImage extends Imagick
 
 		return $this->try_decode($r,0,count($r));
 
-
-
-
-		// Based on min and max convert to BW	
-	
-/*	
-		$thr = ($max-$min)/2.0+$min;
-
-		for($x=0; $x<$width; $x++){
-			if ($row[$x]>$thr)
-				$row[$x]=1;
-			else
-				$row[$x]=0;
-		}
-	*/
-		
 	}
-
-
 
 
 
@@ -239,7 +224,6 @@ class QxImage extends Imagick
 		$rc = $this->getImagePage();
 
 		for ($y=0; $y<$rc['height']; $y++){
-//			echo "Scan : $y\n";
 
 			$bc = $this->get_bc($y);
 			
